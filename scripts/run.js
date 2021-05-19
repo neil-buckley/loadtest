@@ -1,4 +1,5 @@
 import http from 'k6/http'
+import ws from 'k6/ws'
 import { check, sleep } from 'k6'
 import { scenarios } from './scenarios.test.js'
 
@@ -6,6 +7,7 @@ let url = __ENV.HASURA_GRAPHQL_ENDPOINT.replace(
   'localhost',
   'host.docker.internal'
 )
+
 let headers = {
   'Content-Type': 'application/json',
   'x-hasura-admin-secret': __ENV.HASURA_GRAPHQL_ADMIN_SECRET,
@@ -24,24 +26,76 @@ export let options = {
   ],
 }
 
+let finalHeaders =
+  (scenarios[__ENV.TEST].headers &&
+    Object.assign({}, scenarios[__ENV.TEST].headers, headers)) ||
+  headers
+
 export default function () {
-  const response = http.post(
-    url,
-    JSON.stringify({
-      query: scenarios[__ENV.TEST].query,
-      variables:
-        (__ENV.VARIABLES && JSON.parse(__ENV.VARIABLES)) ||
-        scenarios[__ENV.TEST].variables,
-    }),
-    {
-      headers: Object.assign({}, scenarios[__ENV.TEST].headers || headers, {
-        Authorization: __ENV.TOKEN ? `Bearer ${__ENV.TOKEN}` : {},
+  // query
+  if (scenarios[__ENV.TEST].query.startsWith('query ')) {
+    const response = http.post(
+      url,
+      JSON.stringify({
+        query: scenarios[__ENV.TEST].query,
+        variables: scenarios[__ENV.TEST].variables,
       }),
+      {
+        headers: Object.assign({}, finalHeaders, {
+          Authorization: __ENV.TOKEN ? `Bearer ${__ENV.TOKEN}` : {},
+        }),
+      }
+    )
+
+    if (response.status === 200) {
+      console.log(`Response: ${JSON.stringify(response.body)}`)
     }
-  )
-  check(response, { 'status is 200': r => r.status === 200 })
-  if (response.status === 200) {
-    console.log(JSON.stringify(response.body))
+
+    check(response, { 'status is 200': r => r.status === 200 })
+  } else {
+    //subscription
+    url = url.replace(/^(https?)/, 'ws')
+    finalheaders = Object.assign({}, finalHeaders, {
+      'Sec-WebSocket-Protocol': 'graphql-ws',
+    })
+
+    const response = ws.connect(
+      url,
+      {
+        headers: Object.assign({}, finalHeaders, {
+          Authorization: __ENV.TOKEN ? `Bearer ${__ENV.TOKEN}` : {},
+        }),
+      },
+      socket => {
+        socket.on('message', msg => {
+          const message = JSON.parse(msg)
+          if (message.type == 'connection_ack')
+            console.log('Connection Established with WebSocket')
+          if (message.type == 'data')
+            console.log(`Message Received: ${message}`)
+        })
+        socket.on('open', () => {
+          socket.send(
+            JSON.stringify({
+              type: 'connection_init',
+              payload: headers,
+            })
+          )
+          socket.send(
+            JSON.stringify({
+              type: 'start',
+              payload: {
+                query: scenarios[__ENV.TEST].query,
+                variables: scenarios[__ENV.TEST].variables,
+              },
+            })
+          )
+        })
+      }
+    )
+
+    check(response, { 'status is 101': r => r && r.status === 101 })
   }
+
   sleep(0.3)
 }
