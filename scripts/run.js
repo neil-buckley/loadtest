@@ -29,10 +29,19 @@ export default function () {
     url,
     JSON.stringify({
       query: scenarios[__ENV.TEST].query,
-      variables: scenarios[__ENV.TEST].variables,
+      variables:
+        (__ENV.VARIABLES && JSON.parse(__ENV.VARIABLES)) ||
+        scenarios[__ENV.TEST].variables,
     }),
-    { headers: headers }
+    {
+      headers: Object.assign({}, scenarios[__ENV.TEST].headers || headers, {
+        Authorization: __ENV.TOKEN ? `Bearer ${__ENV.TOKEN}` : {},
+      }),
+    }
   )
   check(response, { 'status is 200': r => r.status === 200 })
+  if (response.status === 200) {
+    console.log(JSON.stringify(response.body))
+  }
   sleep(0.3)
 }

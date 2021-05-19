@@ -10,6 +10,20 @@ let scenarios = {
             }`,
     variables: { person_id: 145213710362 },
   },
+  querySimple: {
+    query: `query app__App_Account_Content_Diagnostics_Analyze {
+              vaxiom_persons(limit: 1) {
+                id
+                first_name
+                last_name
+              }
+            }`,
+    variables: {},
+    headers: {
+      'x-hasura-vaxiom-person-id': 145213710362,
+      'x-hasura-role': 'patient',
+    },
+  },
 }
 
 export { scenarios }
