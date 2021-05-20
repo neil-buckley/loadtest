@@ -71,8 +71,7 @@ export default function () {
           const message = JSON.parse(msg)
           if (message.type == 'connection_ack')
             console.log('Connection Established with WebSocket')
-          if (message.type == 'data')
-            console.log(`Message Received: ${message}`)
+          if (message.type == 'data') console.log(`Message Received: ${msg}`)
         })
         socket.on('open', () => {
           socket.send(
@@ -84,13 +83,21 @@ export default function () {
           socket.send(
             JSON.stringify({
               type: 'start',
+              id: '1',
               payload: {
+                key: 'a1k1hz',
                 query: scenarios[__ENV.TEST].query,
                 variables: scenarios[__ENV.TEST].variables,
               },
             })
           )
         })
+        socket.setTimeout(function () {
+          console.log('5 seconds passed, closing the socket')
+          socket.close()
+        }, 5000)
+
+        socket.on('close', () => console.log('disconnected'))
       }
     )
 
