@@ -55,7 +55,7 @@ export default function () {
   } else {
     //subscription
     url = url.replace(/^(https?)/, 'ws')
-    finalheaders = Object.assign({}, finalHeaders, {
+    finalHeaders = Object.assign({}, finalHeaders, {
       'Sec-WebSocket-Protocol': 'graphql-ws',
     })
 
